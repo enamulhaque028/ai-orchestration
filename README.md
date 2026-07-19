@@ -32,6 +32,10 @@ parallel work, retries or recovers on failure, and can resume an interrupted run
 - **Live status** — terminal board for what’s running / done / failed
 - **Any project** — install once globally; put `workflow.yaml` in the repo you work on
 
+**When this is helpful:** multi-step / longer work — several agents in a chain
+(or in parallel), handoffs, retries, and overnight runs you don’t want to babysit.
+For a single short prompt in one agent chat, you don’t need `em`.
+
 ## Install (recommended)
 
 Works on **macOS**, **Linux**, and **Windows**.
