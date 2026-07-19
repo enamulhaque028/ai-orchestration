@@ -126,6 +126,7 @@ def parse_workflow(data: dict[str, Any], source_path: str | None = None) -> Work
                     if task_data.get("timeout_seconds") is not None
                     else None
                 ),
+                requires_approval=bool(task_data.get("requires_approval", False)),
             )
         )
 

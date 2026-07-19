@@ -14,6 +14,7 @@ from em.models import RunState, TaskStatus
 STATUS_STYLE = {
     TaskStatus.PENDING: "dim",
     TaskStatus.READY: "cyan",
+    TaskStatus.WAITING_APPROVAL: "bright_yellow",
     TaskStatus.RUNNING: "yellow",
     TaskStatus.SUCCEEDED: "green",
     TaskStatus.FAILED: "red",

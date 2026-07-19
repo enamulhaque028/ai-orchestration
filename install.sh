@@ -179,10 +179,43 @@ main() {
   ensure_path
   install_em
   verify
+  setup_telegram_optional
 
   echo ""
   ok "Done. Try: em --help"
   info "Then open a new terminal, or: export PATH=\"\$HOME/.local/bin:\$PATH\""
+}
+
+setup_telegram_optional() {
+  if [[ "${EM_SKIP_TELEGRAM:-}" == "1" ]]; then
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    info "Skipping Telegram setup (non-interactive). Later: em config telegram"
+    return 0
+  fi
+  echo ""
+  info "Telegram remote control (optional — each developer uses their own bot)"
+  read -r -p "Set up Telegram now? [y/N] " ans || true
+  case "${ans:-}" in
+    y|Y|yes|YES)
+      read -r -p "Bot token (from @BotFather): " token || true
+      if [[ -z "${token:-}" ]]; then
+        warn "No token entered — skip. Run later: em config telegram"
+        return 0
+      fi
+      read -r -p "Your chat id (optional, can set later): " chat || true
+      export PATH="$LOCAL_BIN:$PATH"
+      if [[ -n "${chat:-}" ]]; then
+        em config telegram --token "$token" --chat-id "$chat" || warn "em config telegram failed"
+      else
+        em config telegram --token "$token" || warn "em config telegram failed"
+      fi
+      ;;
+    *)
+      info "Skipped. Configure later with: em config telegram"
+      ;;
+  esac
 }
 
 main "$@"

@@ -17,6 +17,7 @@ from em.platform_paths import (
     python_install_hint,
     which_command,
 )
+from em.config import load_config, redact_token
 
 
 @dataclass
@@ -90,6 +91,25 @@ def run_checks() -> list[CheckResult]:
             )
         )
 
+    cfg = load_config()
+    if cfg.telegram.is_configured():
+        results.append(
+            CheckResult(
+                name="Telegram",
+                ok=True,
+                detail=f"bot {redact_token(cfg.telegram.bot_token)}, chat {cfg.telegram.chat_id}",
+            )
+        )
+    else:
+        results.append(
+            CheckResult(
+                name="Telegram",
+                ok=False,
+                detail="not configured (optional)",
+                hint="em config telegram — personal bot for remote notify/approve",
+            )
+        )
+
     return results
 
 
@@ -103,8 +123,15 @@ def print_doctor(console: Console | None = None) -> int:
     table.add_column("Status")
     table.add_column("Detail")
 
+    optional_names = {
+        "Cursor Agent",
+        "Claude Code",
+        "Codex",
+        "Gemini",
+        "Telegram",
+    }
     for r in results:
-        optional = r.name in ("Cursor Agent", "Claude Code", "Codex", "Gemini")
+        optional = r.name in optional_names
         if r.ok:
             status = "[green]ok[/green]"
         elif optional:
@@ -122,7 +149,7 @@ def print_doctor(console: Console | None = None) -> int:
             console.print(f"  • {r.name}: {r.hint}")
 
     console.print(
-        "\nAgent CLIs are optional — install only the providers your workflow uses."
+        "\nAgent CLIs and Telegram are optional — install only what you use."
     )
     console.print(f"Platform: [cyan]{sys.platform}[/cyan]")
 

@@ -10,6 +10,7 @@ from typing import Any
 class TaskStatus(str, Enum):
     PENDING = "pending"
     READY = "ready"
+    WAITING_APPROVAL = "waiting_approval"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -57,6 +58,7 @@ class TaskDef:
     on_failure_task: str | None = None
     command: str | None = None  # for shell provider
     timeout_seconds: int | None = None
+    requires_approval: bool = False
 
 
 @dataclass

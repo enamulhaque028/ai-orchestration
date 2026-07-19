@@ -31,6 +31,8 @@ parallel work, retries or recovers on failure, and can resume an interrupted run
 - **Resume** — interrupt with Ctrl+C; continue later with `em resume`
 - **Live status** — terminal board for what’s running / done / failed
 - **Any project** — install once globally; put `workflow.yaml` in the repo you work on
+- **Telegram remote control** — per-developer bot; task/run summaries on your phone;
+  pause for approval and confirm from desk or Telegram
 
 **When this is helpful:** multi-step / longer work — several agents in a chain
 (or in parallel), handoffs, retries, and overnight runs you don’t want to babysit.
@@ -234,6 +236,7 @@ tasks:
   when the next step needs that context (what passed, what failed, and why).
 - `when: on_upstream_failure` → recovery task if a dependency failed.
 - `when: on_upstream_success` → only if dependencies succeeded.
+- `requires_approval: true` → pause before the task until you approve (desk or Telegram).
 - Placeholders: `{{cwd}}`, `{{workflow.name}}`, `{{upstream.summary}}`,
   `{{task.<id>.summary}}`, `{{task.<id>.output}}`.
 
@@ -250,15 +253,31 @@ tasks:
     prompt: ""
 ```
 
+## Remote control (Telegram)
+
+Each developer uses **their own** bot (nothing shared in this repo).
+
+```bash
+em config telegram
+```
+
+Paste the token from [@BotFather](https://t.me/BotFather), then message your bot once — **em detects your chat id** and sends a setup message. That’s it.
+
+After that, task/run summaries go to Telegram. Add `requires_approval: true` on a task to pause until you Approve/Reject in Telegram (or `em approve` / `em reject` at your desk).
+
+**Real test guide:** [`docs/TESTING-TELEGRAM.md`](docs/TESTING-TELEGRAM.md).
+
 ## Commands
 
 ```bash
 em init                           # create a starter workflow.yaml
+em config telegram                # set your personal bot token
+em notify test                    # ping Telegram
 em run workflow.yaml              # start
 em status                         # latest run
-em status <run_id>                # one run
+em approve <run_id> <task_id>     # desk approval
+em reject <run_id> <task_id>
 em resume                         # continue latest
-em resume <run_id>
 em cancel <run_id>
 ```
 

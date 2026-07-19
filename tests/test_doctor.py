@@ -11,6 +11,7 @@ def test_doctor_includes_python_and_agents():
     assert "em command" in results
     assert "Cursor Agent" in results
     assert "User bin on PATH" in results
+    assert "Telegram" in results
     assert results["Python"].ok is (sys.version_info >= (3, 11))
 
 

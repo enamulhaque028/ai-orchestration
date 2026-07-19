@@ -15,12 +15,33 @@ from em.scheduler import Scheduler
 from em.state import StateStore, default_state_dir
 from em.workflow import WorkflowError, load_workflow
 from em.doctor import print_doctor
+from em.config import (
+    clear_telegram,
+    load_config,
+    redact_token,
+    save_config,
+)
+from em.notify import telegram as tg
+from em.notify.approvals import write_decision
+from em.notify.telegram import TelegramError
 
 app = typer.Typer(
     name="em",
     help="Engineering Manager — orchestrate multi-agent coding workflows.",
     no_args_is_help=True,
 )
+config_app = typer.Typer(
+    name="config",
+    help="Manage local em config (~/.em/config.yaml).",
+    no_args_is_help=True,
+)
+notify_app = typer.Typer(
+    name="notify",
+    help="Test notification channels.",
+    no_args_is_help=True,
+)
+app.add_typer(config_app, name="config")
+app.add_typer(notify_app, name="notify")
 console = Console()
 
 
@@ -31,10 +52,184 @@ def doctor_cmd() -> None:
     raise typer.Exit(code)
 
 
+@config_app.command("show")
+def config_show_cmd() -> None:
+    """Show local config (tokens redacted)."""
+    cfg = load_config()
+    console.print(f"Config file: [cyan]{Path.home() / '.em' / 'config.yaml'}[/cyan]")
+    console.print(
+        f"Telegram bot: [cyan]{redact_token(cfg.telegram.bot_token)}[/cyan]"
+    )
+    console.print(
+        f"Telegram chat_id: [cyan]{cfg.telegram.chat_id or '(not set)'}[/cyan]"
+    )
+    console.print(
+        f"Allowed chat ids: [cyan]{cfg.telegram.allowed_chat_ids or '(none)'}[/cyan]"
+    )
+    console.print(
+        f"Notify on task complete: {cfg.notify.on_task_complete}"
+    )
+    console.print(f"Notify on run complete: {cfg.notify.on_run_complete}")
+    if cfg.telegram.is_configured():
+        console.print("[green]Telegram: configured[/green]")
+    else:
+        console.print(
+            "[yellow]Telegram: not configured[/yellow] — run [cyan]em config telegram[/cyan]"
+        )
+
+
+@config_app.command("telegram")
+def config_telegram_cmd(
+    token: Optional[str] = typer.Option(
+        None, "--token", help="Bot token from @BotFather"
+    ),
+    chat_id: Optional[str] = typer.Option(
+        None,
+        "--chat-id",
+        help="Optional. If omitted, em detects it after you message the bot.",
+    ),
+) -> None:
+    """Save your personal Telegram bot. em detects chat id when possible."""
+    import sys
+
+    cfg = load_config()
+    if not token:
+        if not sys.stdin.isatty():
+            console.print("[red]Token is required (--token)[/red]")
+            raise typer.Exit(1)
+        console.print(
+            "1. Open Telegram → @BotFather → /newbot\n"
+            "2. Copy the bot token it gives you."
+        )
+        token = typer.prompt("Bot token", hide_input=True)
+    token = (token or "").strip()
+    if not token:
+        console.print("[red]Token is required[/red]")
+        raise typer.Exit(1)
+
+    try:
+        me = tg.get_me(token)
+        username = me.get("username") or "bot"
+        console.print(f"[green]Bot ok[/green]: @{username}")
+    except TelegramError as e:
+        console.print(f"[red]Invalid token:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    if chat_id is None:
+        chat_id = ""
+    chat_id = (chat_id or "").strip()
+
+    if not chat_id:
+        console.print(
+            f"Open Telegram, message [cyan]@{username}[/cyan] (any text, e.g. hi),\n"
+            "then wait here — em will detect your chat id automatically…"
+        )
+        if sys.stdin.isatty():
+            discovered = tg.discover_chat_id(token, wait_seconds=90)
+        else:
+            discovered = tg.discover_chat_id(token, wait_seconds=5)
+        if not discovered:
+            console.print(
+                "[red]Could not detect chat id.[/red] Message the bot, then run again:\n"
+                "  [cyan]em config telegram --token …[/cyan]\n"
+                "Or pass it explicitly: [cyan]--chat-id YOUR_ID[/cyan]"
+            )
+            raise typer.Exit(1)
+        chat_id = discovered
+        console.print(f"[green]Detected chat id[/green]: {chat_id}")
+
+    cfg.telegram.bot_token = token
+    cfg.telegram.chat_id = chat_id
+    if chat_id not in cfg.telegram.allowed_chat_ids:
+        cfg.telegram.allowed_chat_ids.append(chat_id)
+
+    path = save_config(cfg)
+    console.print(f"[green]Saved[/green] {path}")
+
+    try:
+        tg.send_message(
+            token,
+            chat_id,
+            "✅ <b>em setup complete</b>\nYou'll get task summaries and approval requests here.",
+            parse_mode="HTML",
+        )
+        console.print("[green]Sent[/green] setup message to Telegram. You're done.")
+    except TelegramError as e:
+        console.print(f"[yellow]Saved, but test message failed:[/yellow] {e}")
+
+
+@config_app.command("clear")
+def config_clear_cmd(
+    channel: str = typer.Argument(..., help="Channel to clear (telegram)"),
+) -> None:
+    """Remove a notification channel from local config."""
+    if channel != "telegram":
+        console.print("[red]Only 'telegram' is supported for clear[/red]")
+        raise typer.Exit(1)
+    cfg = clear_telegram(load_config())
+    path = save_config(cfg)
+    console.print(f"[green]Cleared telegram settings in[/green] {path}")
+
+
+@notify_app.command("test")
+def notify_test_cmd() -> None:
+    """Send a test Telegram message using local config."""
+    cfg = load_config()
+    if not cfg.telegram.is_configured():
+        console.print(
+            "[red]Telegram not configured.[/red] Run [cyan]em config telegram[/cyan]"
+        )
+        raise typer.Exit(1)
+    try:
+        tg.send_message(
+            cfg.telegram.bot_token,
+            cfg.telegram.chat_id,
+            "✅ <b>em notify test</b>\nRemote control is set up.",
+            parse_mode="HTML",
+        )
+    except TelegramError as e:
+        console.print(f"[red]Send failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    console.print("[green]Sent[/green] test message to your Telegram chat.")
+
+
+@app.command("approve")
+def approve_cmd(
+    run_id: str = typer.Argument(..., help="Run id"),
+    task_id: str = typer.Argument(..., help="Task id waiting for approval"),
+    state_dir: Optional[str] = typer.Option(None, "--state-dir"),
+) -> None:
+    """Approve a task that is waiting (desk control)."""
+    store = _store_from_option(state_dir)
+    path = write_decision(
+        store.root, run_id, task_id, "approve", source="cli"
+    )
+    console.print(f"[green]Approved[/green] {run_id} / {task_id}")
+    console.print(f"Wrote {path}")
+
+
+@app.command("reject")
+def reject_cmd(
+    run_id: str = typer.Argument(..., help="Run id"),
+    task_id: str = typer.Argument(..., help="Task id waiting for approval"),
+    reason: str = typer.Option("", "--reason", "-r", help="Optional reason"),
+    state_dir: Optional[str] = typer.Option(None, "--state-dir"),
+) -> None:
+    """Reject a task that is waiting (desk control)."""
+    store = _store_from_option(state_dir)
+    path = write_decision(
+        store.root, run_id, task_id, "reject", reason=reason, source="cli"
+    )
+    console.print(f"[yellow]Rejected[/yellow] {run_id} / {task_id}")
+    console.print(f"Wrote {path}")
+
+
 STARTER_WORKFLOW = """# Starter workflow for `em`. Edit prompts, then: em run workflow.yaml
 # Providers: cursor / claude / codex / gemini / shell
 #   Claude Code: `claude` on PATH
 #   Cursor: `agent` / `cursor-agent` on PATH + `agent login` (no API key)
+# Optional: requires_approval: true on a task → pause for desk/Telegram confirm
+# Telegram: em config telegram   then   em notify test
 name: add-checkout-flow-real
 cwd: .
 max_parallel: 2
