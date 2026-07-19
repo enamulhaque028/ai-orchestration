@@ -102,7 +102,7 @@ auto-install these; they need their own login):
 em doctor    # shows which agent CLIs are available
 ```
 
-**Optional:** Flutter SDK — only for the [Flutter demo](examples/sample_flutter_app/flutter-checkout.yaml).
+**Optional:** Flutter SDK — only for the [Flutter demo](examples/sample_flutter_app/workflow.yaml).
 
 ## Quick start
 
@@ -134,7 +134,7 @@ em status
 
 ```bash
 cd ai-orchestration/examples/sample_flutter_app
-em run flutter-checkout.yaml
+em run workflow.yaml
 ```
 
 ## Supported providers
@@ -244,7 +244,7 @@ State and logs (default under the project `cwd`):
 
 | File | Purpose |
 |------|---------|
-| [`examples/sample_flutter_app/flutter-checkout.yaml`](examples/sample_flutter_app/flutter-checkout.yaml) | Real Flutter feature pipeline (lives in the app) |
+| [`examples/sample_flutter_app/workflow.yaml`](examples/sample_flutter_app/workflow.yaml) | Real Flutter feature pipeline (lives in the app) |
 
 `em init` writes a starter workflow (mixed Claude + Cursor) into your project.
 

@@ -7,7 +7,7 @@
 #
 # Run from this folder:
 #   cd examples/sample_flutter_app
-#   em run flutter-checkout.yaml
+#   em run workflow.yaml
 name: flutter-store-checkout
 cwd: .
 max_parallel: 1

@@ -8,7 +8,7 @@ Default workflow uses **Cursor Agent CLI**. Change `provider:` in the YAML to
 
 ## Run
 
-The workflow (`flutter-checkout.yaml`) lives **in this folder** with `cwd: .`,
+The workflow (`workflow.yaml`) lives **in this folder** with `cwd: .`,
 so run it from here:
 
 ```bash
@@ -19,7 +19,7 @@ export PATH="$HOME/.local/bin:$PATH"   # if using Cursor Agent
 #   agent login
 #   claude
 
-em run flutter-checkout.yaml
+em run workflow.yaml
 em status
 ```
 
