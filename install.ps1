@@ -153,6 +153,33 @@ function Verify-Em {
     em doctor
 }
 
+function Setup-TelegramOptional {
+    if ($env:EM_SKIP_TELEGRAM -eq "1") { return }
+    if (-not [Environment]::UserInteractive) {
+        Write-Host "Skipping Telegram setup (non-interactive). Later: em config telegram"
+        return
+    }
+    Write-Host ""
+    Write-Host "Telegram remote control (optional — each developer uses their own bot)"
+    $ans = Read-Host "Set up Telegram now? [y/N]"
+    if ($ans -notmatch '^[yY]') {
+        Write-Host "Skipped. Configure later with: em config telegram"
+        return
+    }
+    $token = Read-Host "Bot token (from @BotFather)"
+    if (-not $token) {
+        Write-Warn "No token entered — skip. Run later: em config telegram"
+        return
+    }
+    $chat = Read-Host "Your chat id (optional, can set later)"
+    $env:Path = "$LocalBin;" + $env:Path
+    if ($chat) {
+        em config telegram --token $token --chat-id $chat
+    } else {
+        em config telegram --token $token
+    }
+}
+
 Write-Host "Engineering Manager (em) installer for Windows"
 Write-Host "https://github.com/enamulhaque028/ai-orchestration"
 Write-Host ""
@@ -162,6 +189,7 @@ Ensure-Pipx $python
 Ensure-Path
 Install-Em
 Verify-Em
+Setup-TelegramOptional
 
 Write-Host ""
 Write-Ok "Done. Try: em --help"

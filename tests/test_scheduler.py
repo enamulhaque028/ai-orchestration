@@ -1,5 +1,7 @@
 """Tests for DAG scheduling, parallelism, retries, and recovery."""
 
+import asyncio
+
 import pytest
 
 from em.adapters.mock import MockAdapter
@@ -218,3 +220,81 @@ async def test_shell_adapter(tmp_path):
     )
     assert result.status == TaskStatus.SUCCEEDED
     assert "hello-em" in result.raw_output
+
+
+@pytest.mark.asyncio
+async def test_requires_approval_then_approve(tmp_path):
+    from em.config import EmConfig
+    from em.notify import Notifier
+    from em.notify.approvals import write_decision
+
+    wf = parse_workflow(
+        {
+            "name": "gate",
+            "agents": {"d": {"provider": "mock"}},
+            "tasks": [
+                {
+                    "id": "gated",
+                    "agent": "d",
+                    "prompt": "go",
+                    "requires_approval": True,
+                }
+            ],
+        }
+    )
+    wf.source_path = str(tmp_path / "w.yaml")
+    store = StateStore(tmp_path / ".em")
+    state = store.create_run(wf, str(tmp_path))
+    run_id = state.run_id
+
+    async def approve_soon():
+        await asyncio.sleep(0.2)
+        write_decision(store.root, run_id, "gated", "approve", source="test")
+
+    notifier = Notifier(EmConfig())  # no telegram
+    mock = MockAdapter(delay=0.01)
+    sched = Scheduler(
+        wf, store, adapter_overrides={"mock": mock}, notifier=notifier
+    )
+    approve_task = asyncio.create_task(approve_soon())
+    final = await sched.run(state)
+    await approve_task
+    assert final.status == RunStatus.SUCCEEDED
+    assert final.tasks["gated"].status == TaskStatus.SUCCEEDED
+    assert mock.calls == ["gated"]
+
+
+@pytest.mark.asyncio
+async def test_task_complete_notifier_called(tmp_path):
+    from em.config import EmConfig, NotifyConfig
+    from em.notify import Notifier
+
+    class RecordingNotifier(Notifier):
+        def __init__(self):
+            super().__init__(EmConfig(notify=NotifyConfig(on_task_complete=True)))
+            self.tasks: list[str] = []
+            self.runs: list[str] = []
+
+        def task_completed(self, state, task):
+            self.tasks.append(task.id)
+
+        def run_completed(self, state):
+            self.runs.append(state.run_id)
+
+    wf = parse_workflow(
+        {
+            "name": "n",
+            "agents": {"d": {"provider": "mock"}},
+            "tasks": [{"id": "t1", "agent": "d", "prompt": "x"}],
+        }
+    )
+    wf.source_path = str(tmp_path / "w.yaml")
+    store = StateStore(tmp_path / ".em")
+    state = store.create_run(wf, str(tmp_path))
+    rec = RecordingNotifier()
+    final = await Scheduler(
+        wf, store, adapter_overrides={"mock": MockAdapter(delay=0.01)}, notifier=rec
+    ).run(state)
+    assert final.status == RunStatus.SUCCEEDED
+    assert rec.tasks == ["t1"]
+    assert rec.runs == [final.run_id]
