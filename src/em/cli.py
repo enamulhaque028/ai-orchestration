@@ -15,12 +15,19 @@ from em.scheduler import Scheduler
 from em.state import StateStore, default_state_dir
 from em.workflow import WorkflowError, load_workflow
 from em.doctor import print_doctor
+from em.examples_data import example_path_in_package, list_examples, write_example
 
 app = typer.Typer(
     name="em",
     help="Engineering Manager — orchestrate multi-agent coding workflows.",
     no_args_is_help=True,
 )
+examples_app = typer.Typer(
+    name="examples",
+    help="List or write bundled example workflows.",
+    no_args_is_help=True,
+)
+app.add_typer(examples_app, name="examples")
 console = Console()
 
 
@@ -29,6 +36,50 @@ def doctor_cmd() -> None:
     """Check Python, PATH, em, and optional agent CLIs."""
     code = print_doctor(console)
     raise typer.Exit(code)
+
+
+@examples_app.command("list")
+def examples_list_cmd() -> None:
+    """Show bundled example workflow names."""
+    names = list_examples()
+    if not names:
+        console.print("[yellow]No bundled examples found.[/yellow]")
+        raise typer.Exit(1)
+    console.print("[bold]Bundled examples[/bold]")
+    for name in names:
+        console.print(f"  • {name}")
+    console.print(
+        "\nWrite one into the current directory:\n"
+        "  [cyan]em examples write mock-feature[/cyan]\n"
+        "Or run directly:\n"
+        "  [cyan]em run --example mock-feature[/cyan]"
+    )
+
+
+@examples_app.command("write")
+def examples_write_cmd(
+    name: str = typer.Argument(..., help="Example name (see: em examples list)"),
+    dest: Path = typer.Option(
+        Path("."),
+        "--dest",
+        help="Directory to write the YAML into",
+    ),
+) -> None:
+    """Copy a bundled example workflow YAML into a directory."""
+    try:
+        out = write_example(name, dest)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    console.print(f"[green]Wrote[/green] {out}")
+    if name.replace(".yaml", "") == "flutter-checkout":
+        console.print(
+            "Run this from a Flutter app folder (cwd is `.`).\n"
+            "Sample app: clone the repo and use [cyan]examples/sample_flutter_app[/cyan], then:\n"
+            f"  [cyan]cd …/examples/sample_flutter_app && em run {out.name}[/cyan]"
+        )
+    else:
+        console.print(f"Run: [cyan]em run {out}[/cyan]")
 
 
 def _resolve_cwd(workflow_cwd: str | None, override: str | None) -> str:
@@ -49,7 +100,15 @@ def _providers_map(workflow) -> dict[str, str]:
 
 @app.command("run")
 def run_cmd(
-    workflow: Path = typer.Argument(..., exists=True, help="Path to workflow YAML"),
+    workflow: Optional[Path] = typer.Argument(
+        None, help="Path to workflow YAML (or use --example)"
+    ),
+    example: Optional[str] = typer.Option(
+        None,
+        "--example",
+        "-e",
+        help="Run a bundled example by name (see: em examples list)",
+    ),
     cwd: Optional[str] = typer.Option(
         None, "--cwd", help="Working directory for agents (overrides workflow.cwd)"
     ),
@@ -61,8 +120,30 @@ def run_cmd(
     ),
 ) -> None:
     """Start a new workflow run."""
+    workflow_path: Path
+    if example:
+        try:
+            workflow_path = example_path_in_package(example)
+        except FileNotFoundError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+    elif workflow is not None:
+        workflow_path = workflow
+        if not workflow_path.is_file():
+            console.print(f"[red]Workflow not found:[/red] {workflow_path}")
+            console.print(
+                "Tip: bundled demos → [cyan]em examples list[/cyan] "
+                "then [cyan]em run --example mock-feature[/cyan]"
+            )
+            raise typer.Exit(1)
+    else:
+        console.print("[red]Provide a workflow path or --example NAME[/red]")
+        console.print("  em run my-workflow.yaml")
+        console.print("  em run --example mock-feature")
+        raise typer.Exit(1)
+
     try:
-        wf = load_workflow(workflow)
+        wf = load_workflow(workflow_path)
     except WorkflowError as e:
         console.print(f"[red]Invalid workflow:[/red] {e}")
         raise typer.Exit(1) from e

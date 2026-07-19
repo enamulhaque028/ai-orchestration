@@ -106,31 +106,36 @@ em doctor    # shows which agent CLIs are available
 
 ## Quick start
 
-Dry-run (no real agent):
+After a global install you do **not** need the repo path. Use bundled examples:
 
 ```bash
-em run workflows/example-feature.yaml
+em examples list
+em run --example mock-feature          # dry-run (mock agents, no CLI needed)
 em status
 ```
 
-Real agents on a project:
+Real agents on **your** project:
 
 ```bash
-# 1) Log into the CLI(s) you use, e.g.:
-#    agent login          # Cursor Agent
-#    claude               # Claude Code (follow login)
-
-# 2) Edit a workflow: set provider + prompts, set cwd to your repo
-
-# 3) Run
-em run path/to/workflow.yaml
+# 1) Log into the CLI(s) you use, e.g. agent login
+# 2) Write a workflow YAML (or copy an example)
+em examples write real-agents
+# 3) Edit cwd/prompts, then:
+em run real-agents.yaml --cwd /path/to/your/repo
 ```
 
-Flutter demo (Cursor Agent CLI by default):
+Flutter demo (needs Flutter SDK + Cursor Agent):
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+# Option A — from a clone of this repo:
+cd /path/to/ai-orchestration
 em run examples/workflows/flutter-checkout.yaml
+
+# Option B — bundled example inside the sample app:
+git clone https://github.com/enamulhaque028/ai-orchestration.git
+cd ai-orchestration/examples/sample_flutter_app
+em examples write flutter-checkout
+em run flutter-checkout.yaml
 ```
 
 ## Supported providers
