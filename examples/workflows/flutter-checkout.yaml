@@ -1,0 +1,129 @@
+# Real Cursor Agent CLI pipeline for the sample Flutter app.
+# Free product API (no key): https://fakestoreapi.com
+#
+# Auth: Cursor Agent CLI login (no CURSOR_API_KEY needed)
+#   agent login          # once
+#   agent status         # confirm logged in
+# Binary: ~/.local/bin/agent (or cursor-agent on PATH)
+name: flutter-store-checkout
+cwd: examples/sample_flutter_app
+max_parallel: 1
+defaults:
+  on_failure: retry
+  max_retries: 1
+
+agents:
+  api:
+    provider: cursor
+    model: composer-2.5
+  ui:
+    provider: cursor
+    model: composer-2.5
+  qa:
+    provider: cursor
+    model: composer-2.5
+  fixer:
+    provider: cursor
+    model: composer-2.5
+  reviewer:
+    provider: cursor
+    model: composer-2.5
+
+tasks:
+  - id: implement-api
+    agent: api
+    prompt: |
+      You are the API engineer for this Flutter app (cwd is the project root).
+
+      Goal: add a real HTTP client for Fake Store API (free, no API key):
+      https://fakestoreapi.com
+
+      Requirements:
+      1. Create lib/features/store/product.dart — model with id, title, price,
+         description, category, image + fromJson.
+      2. Create lib/features/store/store_api.dart — StoreApi that:
+         - GET https://fakestoreapi.com/products → List<Product>
+         - GET https://fakestoreapi.com/products/{id} → Product
+         - Prefer dart:io HttpClient (avoid new deps unless necessary)
+         - Clear errors on non-2xx responses
+      3. Create lib/features/store/checkout_service.dart — placeOrder(email, product)
+         that validates email contains @ and returns Future<bool> (local only;
+         Fake Store has no paid checkout endpoint).
+
+      Do not build UI in this task. Keep changes focused under lib/features/store/.
+      Run dart analyze on the files you touch if useful. Summarize what you created.
+
+  - id: implement-ui
+    agent: ui
+    depends_on: [implement-api]
+    prompt: |
+      You are the Flutter UI engineer. The API layer should already exist under
+      lib/features/store/ (Product, StoreApi, CheckoutService).
+
+      Build the store UI with these requirements:
+      1. ProductListPage — load products via StoreApi; show title, price, image.
+      2. Loading state and error state with a Retry button.
+      3. Tap product → ProductDetailPage (title, price, description, image).
+      4. "Add to cart" → CheckoutPage with email field + Place order button
+         using CheckoutService.placeOrder.
+      5. Widget keys (required for QA):
+         - product_list, product_list_loading, product_list_error
+         - product_tile_<id> (e.g. product_tile_1)
+         - add_to_cart, checkout_email, checkout_submit, checkout_result
+      6. Update lib/main.dart so home is ProductListPage.
+
+      Put widgets under lib/features/store/. Do not rewrite the API client unless
+      something is broken. Summarize screens you added.
+
+  - id: qa
+    agent: qa
+    depends_on: [implement-ui]
+    prompt: |
+      You are QA. Write and run tests for the store/checkout feature.
+
+      Requirements:
+      1. Add tests under test/features/store/ (and fix test/widget_test.dart if
+         the default counter test is obsolete after main.dart changes).
+      2. Unit-test Product.fromJson and CheckoutService.
+      3. Widget-test ProductListPage with a fake/mock StoreApi subclass so tests
+         do NOT hit the network.
+      4. Widget-test CheckoutPage order success path using the required keys.
+      5. Run: flutter test
+      6. Fix any test failures you introduce until flutter test passes.
+
+      Upstream context:
+      {{upstream.summary}}
+
+      Report what passed/failed.
+
+  - id: fix-failures
+    agent: fixer
+    depends_on: [qa]
+    when: on_upstream_failure
+    prompt: |
+      QA failed. Fix the Flutter store/checkout code and/or tests so that
+      `flutter test` passes. Re-run flutter test before finishing.
+
+      QA / upstream context:
+      {{upstream.summary}}
+
+  - id: review
+    agent: reviewer
+    depends_on: [qa]
+    when: on_upstream_success
+    prompt: |
+      You are the code reviewer. The store/checkout feature should be complete
+      and tests green.
+
+      Do this:
+      1. Run `flutter analyze` and fix trivial issues if needed (or document them).
+      2. Verify UI requirements (list, detail, checkout, keys) and Fake Store API usage.
+      3. Write docs/REVIEW.md with a pass/fail checklist covering:
+         - API client uses https://fakestoreapi.com
+         - UI screens + keys present
+         - Tests exist and flutter test was green upstream
+         - Analyze status
+      4. Keep the review honest — mark fail items clearly if missing.
+
+      Upstream QA:
+      {{upstream.summary}}
