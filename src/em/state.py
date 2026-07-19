@@ -97,6 +97,9 @@ class StateStore:
                 # Re-enter approval wait on resume
                 task.status = TaskStatus.PENDING
                 task.finished_at = None
+            elif task.status == TaskStatus.WAITING_HUMAN:
+                task.status = TaskStatus.PENDING
+                task.finished_at = None
         if state.status in (RunStatus.RUNNING, RunStatus.CANCELLED):
             state.status = RunStatus.PENDING
             state.error = None
@@ -109,6 +112,7 @@ class StateStore:
                 TaskStatus.PENDING,
                 TaskStatus.READY,
                 TaskStatus.WAITING_APPROVAL,
+                TaskStatus.WAITING_HUMAN,
                 TaskStatus.RUNNING,
             ):
                 task.status = TaskStatus.CANCELLED

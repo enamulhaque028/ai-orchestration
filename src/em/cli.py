@@ -23,6 +23,7 @@ from em.config import (
 )
 from em.notify import telegram as tg
 from em.notify.approvals import write_decision
+from em.notify.asks import write_reply
 from em.notify.telegram import TelegramError
 
 app = typer.Typer(
@@ -221,6 +222,22 @@ def reject_cmd(
         store.root, run_id, task_id, "reject", reason=reason, source="cli"
     )
     console.print(f"[yellow]Rejected[/yellow] {run_id} / {task_id}")
+    console.print(f"Wrote {path}")
+
+
+@app.command("answer")
+def answer_cmd(
+    run_id: str = typer.Argument(..., help="Run id"),
+    task_id: str = typer.Argument(..., help="Task id waiting for a human answer"),
+    text: str = typer.Option(..., "--text", "-t", help="Your answer / chosen option"),
+    state_dir: Optional[str] = typer.Option(None, "--state-dir"),
+) -> None:
+    """Answer an agent-raised question (choice or free text) from your desk."""
+    store = _store_from_option(state_dir)
+    path = write_reply(
+        store.root, run_id, task_id, "answer", answer=text, source="cli"
+    )
+    console.print(f"[green]Answered[/green] {run_id} / {task_id}")
     console.print(f"Wrote {path}")
 
 

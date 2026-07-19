@@ -92,6 +92,26 @@ def approval_keyboard(run_id: str, task_id: str) -> dict[str, Any]:
     }
 
 
+def choice_keyboard(run_id: str, task_id: str, options: list[str]) -> dict[str, Any]:
+    """Buttons use option index (callback_data max 64 bytes)."""
+    rows: list[list[dict[str, str]]] = []
+    row: list[dict[str, str]] = []
+    for i, opt in enumerate(options[:8]):
+        label = opt if len(opt) <= 40 else opt[:37] + "…"
+        row.append(
+            {
+                "text": label,
+                "callback_data": f"em:pick:{run_id}:{task_id}:{i}"[:64],
+            }
+        )
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return {"inline_keyboard": rows}
+
+
 def get_updates(
     token: str,
     *,
@@ -176,14 +196,17 @@ def discover_chat_id(
     return latest
 
 
-def parse_approval_from_update(
+def parse_human_reply_from_update(
     update: dict[str, Any],
     *,
     run_id: str,
     task_id: str,
     allowlist: set[str],
-) -> tuple[str, str] | None:
-    """Return (decision, source_detail) if this update is an approval for the task."""
+    ask_type: str = "confirm",
+    options: list[str] | None = None,
+) -> tuple[str, str, str] | None:
+    """Return (kind, answer, source) if this update answers the pending ask."""
+    options = options or []
     cb = update.get("callback_query")
     if cb:
         from_user = cb.get("from") or {}
@@ -192,17 +215,22 @@ def parse_approval_from_update(
         if allowlist and chat_id not in allowlist:
             return None
         data = str(cb.get("data") or "")
-        # em:approve:run_xxx:task_id  (run_id may contain underscores)
         parts = data.split(":")
-        if len(parts) >= 4 and parts[0] == "em" and parts[1] in ("approve", "reject"):
-            # callback_data is limited to 64 bytes — we use em:approve:{run_id}:{task_id}
-            dec = parts[1]
-            # Remaining joined may be run_id:task_id
-            rest = data[len(f"em:{dec}:") :]
-            if rest == f"{run_id}:{task_id}" or (
-                rest.endswith(f":{task_id}") and rest.startswith(run_id)
-            ):
-                return dec, f"telegram:callback:{chat_id}"
+        if len(parts) >= 4 and parts[0] == "em":
+            action = parts[1]
+            rest = data[len(f"em:{action}:") :]
+            if action in ("approve", "reject"):
+                if rest == f"{run_id}:{task_id}" or (
+                    rest.endswith(f":{task_id}") and rest.startswith(run_id)
+                ):
+                    return action, action, f"telegram:callback:{chat_id}"
+            if action == "pick" and run_id in data and task_id in data:
+                try:
+                    idx = int(parts[-1])
+                except ValueError:
+                    return None
+                if 0 <= idx < len(options):
+                    return "answer", options[idx], f"telegram:callback:{chat_id}"
         return None
 
     msg = update.get("message")
@@ -211,9 +239,43 @@ def parse_approval_from_update(
         chat_id = str(chat.get("id") or "")
         if allowlist and chat_id not in allowlist:
             return None
-        text = str(msg.get("text") or "").strip().lower()
-        if text in ("approve", "yes", "/approve"):
-            return "approve", f"telegram:text:{chat_id}"
-        if text in ("reject", "no", "/reject"):
-            return "reject", f"telegram:text:{chat_id}"
+        text = str(msg.get("text") or "").strip()
+        low = text.lower()
+        if ask_type == "confirm":
+            if low in ("approve", "yes", "/approve", "y"):
+                return "approve", "approve", f"telegram:text:{chat_id}"
+            if low in ("reject", "no", "/reject", "n"):
+                return "reject", "reject", f"telegram:text:{chat_id}"
+            return None
+        if ask_type == "choice":
+            if low.isdigit():
+                idx = int(low) - 1
+                if 0 <= idx < len(options):
+                    return "answer", options[idx], f"telegram:text:{chat_id}"
+            for opt in options:
+                if text == opt or low == opt.lower():
+                    return "answer", opt, f"telegram:text:{chat_id}"
+            return None
+        if ask_type == "text" and text:
+            return "answer", text, f"telegram:text:{chat_id}"
+    return None
+
+
+def parse_approval_from_update(
+    update: dict[str, Any],
+    *,
+    run_id: str,
+    task_id: str,
+    allowlist: set[str],
+) -> tuple[str, str] | None:
+    """Back-compat wrapper → (approve|reject, source)."""
+    parsed = parse_human_reply_from_update(
+        update,
+        run_id=run_id,
+        task_id=task_id,
+        allowlist=allowlist,
+        ask_type="confirm",
+    )
+    if parsed and parsed[0] in ("approve", "reject"):
+        return parsed[0], parsed[2]
     return None

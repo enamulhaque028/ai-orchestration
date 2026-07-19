@@ -20,7 +20,14 @@ from em.models import (
     Workflow,
 )
 from em.notify import Notifier
-from em.notify.approvals import clear_decision, read_decision
+from em.notify.asks import (
+    EM_ASK_INSTRUCTIONS,
+    HumanAsk,
+    clear_ask_files,
+    parse_em_ask,
+    read_reply,
+    write_ask,
+)
 from em.state import StateStore, utc_now
 from em.workflow import render_prompt
 
@@ -96,6 +103,7 @@ class Scheduler:
                     TaskStatus.PENDING,
                     TaskStatus.READY,
                     TaskStatus.WAITING_APPROVAL,
+                    TaskStatus.WAITING_HUMAN,
                     TaskStatus.RUNNING,
                 )
                 if not in_flight and not any(
@@ -237,54 +245,107 @@ class Scheduler:
     async def _await_approval_then_execute(
         self, state: RunState, task_id: str
     ) -> None:
-        clear_decision(self.store.root, state.run_id, task_id)
-        self.notifier.needs_approval(state, task_id)
+        clear_ask_files(self.store.root, state.run_id, task_id)
+        ask = HumanAsk(
+            type="confirm",
+            question=f"Approve running task `{task_id}`?",
+            source="yaml",
+        )
+        write_ask(self.store.root, state.run_id, task_id, ask)
+        self.notifier.human_ask(state, task_id, ask)
         await self._persist(state)
 
+        reply = await self._wait_for_human_reply(state, task_id, ask)
+        if reply is None:
+            return
+        if reply.kind == "approve":
+            async with self._lock:
+                state.tasks[task_id].status = TaskStatus.RUNNING
+                state.tasks[task_id].attempts += 1
+                state.tasks[task_id].summary = f"Approved ({reply.source})"
+                await self._persist(state)
+            await self._execute_task(state, task_id)
+            return
+        async with self._lock:
+            ts = state.tasks[task_id]
+            ts.status = TaskStatus.FAILED
+            ts.finished_at = utc_now()
+            ts.summary = (
+                f"Rejected by human ({reply.source})"
+                + (f": {reply.answer}" if reply.answer else "")
+            )
+            ts.error = ts.summary
+            await self._persist(state)
+            self.notifier.task_completed(state, ts)
+
+    async def _wait_for_human_reply(self, state: RunState, task_id: str, ask: HumanAsk):
         tg_offset: int | None = None
         while not self._cancel.is_set():
-            decision = read_decision(self.store.root, state.run_id, task_id)
-            if decision is None and self.notifier.telegram_ready:
-                decision, tg_offset = await asyncio.to_thread(
-                    self.notifier.poll_telegram_decision,
+            reply = read_reply(self.store.root, state.run_id, task_id)
+            if reply is None and self.notifier.telegram_ready:
+                reply, tg_offset = await asyncio.to_thread(
+                    self.notifier.poll_telegram_reply,
                     state_root=self.store.root,
                     run_id=state.run_id,
                     task_id=task_id,
+                    ask=ask,
                     offset=tg_offset,
                 )
-            if decision is not None:
-                if decision.decision == "approve":
-                    async with self._lock:
-                        state.tasks[task_id].status = TaskStatus.RUNNING
-                        state.tasks[task_id].attempts += 1
-                        state.tasks[task_id].summary = (
-                            f"Approved ({decision.source})"
-                        )
-                        await self._persist(state)
-                    await self._execute_task(state, task_id)
-                    return
-                async with self._lock:
-                    ts = state.tasks[task_id]
-                    ts.status = TaskStatus.FAILED
-                    ts.finished_at = utc_now()
-                    ts.summary = (
-                        f"Rejected by human ({decision.source})"
-                        + (f": {decision.reason}" if decision.reason else "")
-                    )
-                    ts.error = ts.summary
-                    await self._persist(state)
-                    self.notifier.task_completed(state, ts)
-                return
+            if reply is not None:
+                return reply
             await asyncio.sleep(0.5)
 
         async with self._lock:
             ts = state.tasks[task_id]
-            if ts.status == TaskStatus.WAITING_APPROVAL:
+            if ts.status in (
+                TaskStatus.WAITING_APPROVAL,
+                TaskStatus.WAITING_HUMAN,
+            ):
                 ts.status = TaskStatus.CANCELLED
                 ts.finished_at = utc_now()
-                ts.summary = "Cancelled while waiting for approval"
+                ts.summary = "Cancelled while waiting for human"
                 await self._persist(state)
                 self.notifier.task_completed(state, ts)
+        return None
+
+    async def _await_human_ask_then_resume(
+        self, state: RunState, task_id: str, ask: HumanAsk
+    ) -> None:
+        """Pause after agent raised EM_ASK; on answer, re-run the task with context."""
+        clear_ask_files(self.store.root, state.run_id, task_id)
+        write_ask(self.store.root, state.run_id, task_id, ask)
+        async with self._lock:
+            ts = state.tasks[task_id]
+            ts.status = TaskStatus.WAITING_HUMAN
+            ts.finished_at = None
+            ts.summary = f"Waiting for human ({ask.type}): {ask.question}"
+            await self._persist(state)
+        self.notifier.human_ask(state, task_id, ask)
+
+        reply = await self._wait_for_human_reply(state, task_id, ask)
+        if reply is None:
+            return
+        if reply.kind == "reject":
+            async with self._lock:
+                ts = state.tasks[task_id]
+                ts.status = TaskStatus.FAILED
+                ts.finished_at = utc_now()
+                ts.summary = f"Human rejected ask ({reply.source}): {ask.question}"
+                ts.error = ts.summary
+                await self._persist(state)
+                self.notifier.task_completed(state, ts)
+            return
+
+        answer = reply.answer if reply.kind == "answer" else "approved"
+        async with self._lock:
+            ts = state.tasks[task_id]
+            ts.human_answer = answer
+            ts.status = TaskStatus.RUNNING
+            ts.attempts += 1
+            ts.summary = f"Resuming with human answer ({reply.source})"
+            await self._persist(state)
+        clear_ask_files(self.store.root, state.run_id, task_id)
+        await self._execute_task(state, task_id)
 
     async def _execute_task(self, state: RunState, task_id: str) -> None:
         task = self.workflow.task_by_id(task_id)
@@ -301,6 +362,16 @@ class Scheduler:
             task_summaries=summaries,
             upstream_ids=task.depends_on,
         )
+        if ts.human_answer:
+            prompt += (
+                "\n\n---\nHuman operator response to your previous question:\n"
+                f"{ts.human_answer}\n"
+                "Continue the task using this answer. Do not ask the same question again "
+                "unless you still lack required information.\n"
+            )
+        # Teach agents how to raise asks (skip for pure shell commands with empty prompts)
+        if task.prompt.strip() and agent.provider != "shell":
+            prompt = f"{prompt.rstrip()}\n\n{EM_ASK_INSTRUCTIONS}\n"
 
         log_path = str(self.store.log_path(state.run_id, task_id))
         spec = TaskRunSpec(
@@ -325,6 +396,18 @@ class Scheduler:
                 exit_code=1,
             )
 
+        # Agent-raised human ask (even on "success")
+        ask = parse_em_ask(f"{result.summary}\n{result.raw_output}")
+        if ask is not None and result.status == TaskStatus.SUCCEEDED:
+            async with self._lock:
+                ts = state.tasks[task_id]
+                ts.summary = result.summary
+                ts.output = result.raw_output
+                ts.exit_code = result.exit_code
+                await self._persist(state)
+            await self._await_human_ask_then_resume(state, task_id, ask)
+            return
+
         async with self._lock:
             ts = state.tasks[task_id]
             ts.finished_at = utc_now()
@@ -337,10 +420,10 @@ class Scheduler:
             if result.status == TaskStatus.SUCCEEDED:
                 ts.status = TaskStatus.SUCCEEDED
                 ts.error = None
+                ts.human_answer = None  # consumed
             else:
                 await self._handle_failure(state, task, ts, result)
 
-            # Notify only on terminal outcomes (not mid-retry PENDING)
             if ts.status in (
                 TaskStatus.SUCCEEDED,
                 TaskStatus.FAILED,

@@ -32,7 +32,7 @@ parallel work, retries or recovers on failure, and can resume an interrupted run
 - **Live status** — terminal board for what’s running / done / failed
 - **Any project** — install once globally; put `workflow.yaml` in the repo you work on
 - **Telegram remote control** — per-developer bot; task/run summaries on your phone;
-  pause for approval and confirm from desk or Telegram
+  YAML approval gates and agent-raised questions (confirm / choice / text)
 
 **When this is helpful:** multi-step / longer work — several agents in a chain
 (or in parallel), handoffs, retries, and overnight runs you don’t want to babysit.
@@ -261,11 +261,21 @@ Each developer uses **their own** bot (nothing shared in this repo).
 em config telegram
 ```
 
-Paste the token from [@BotFather](https://t.me/BotFather), then message your bot once — **em detects your chat id** and sends a setup message. That’s it.
+Paste the token from [@BotFather](https://t.me/BotFather), then message your bot once — **em detects your chat id** and sends a setup message.
 
-After that, task/run summaries go to Telegram. Add `requires_approval: true` on a task to pause until you Approve/Reject in Telegram (or `em approve` / `em reject` at your desk).
+**Human input has two layers:**
 
-**Real test guide:** [`docs/TESTING-TELEGRAM.md`](docs/TESTING-TELEGRAM.md).
+1. **YAML gate** — `requires_approval: true` → always pause (Approve / Reject) before the task runs  
+2. **Agent ask** — agent prints `EM_ASK:{…}` (confirm / choice / text) → pause, ask you, re-run with your answer  
+
+Desk: `em approve` / `em reject` / `em answer … --text …`  
+Remote: Telegram buttons or replies  
+
+**Full documentation** (features, how it works, config, security, troubleshooting):  
+[`docs/REMOTE-CONTROL.md`](docs/REMOTE-CONTROL.md)
+
+**Hands-on test from scratch:**  
+[`docs/TESTING-TELEGRAM.md`](docs/TESTING-TELEGRAM.md)
 
 ## Commands
 
@@ -277,6 +287,7 @@ em run workflow.yaml              # start
 em status                         # latest run
 em approve <run_id> <task_id>     # desk approval
 em reject <run_id> <task_id>
+em answer <run_id> <task_id> -t … # desk answer to agent question
 em resume                         # continue latest
 em cancel <run_id>
 ```

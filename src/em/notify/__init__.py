@@ -8,12 +8,14 @@ from typing import TYPE_CHECKING
 
 from em.config import EmConfig, load_config
 from em.notify import telegram as tg
-from em.notify.approvals import ApprovalDecision, write_decision
+from em.notify.approvals import ApprovalDecision
+from em.notify.asks import HumanAsk, write_reply
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from em.models import RunState, TaskState
+    from em.notify.asks import HumanReply
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,7 @@ _STATUS_ICON = {
     "skipped": "⏭️",
     "cancelled": "🚫",
     "waiting_approval": "⏸️",
+    "waiting_human": "❓",
     "running": "▶️",
 }
 
@@ -113,18 +116,53 @@ class Notifier:
         )
 
     def needs_approval(self, state: "RunState", task_id: str) -> None:
-        esc = tg.html_escape
-        text = (
-            f"⏸️ <b>Approval needed</b>\n"
-            f"task: <b>{esc(task_id)}</b>\n"
-            f"<i>{esc(state.workflow_name)} · {esc(state.run_id)}</i>\n\n"
-            f"Tap a button below, reply <b>approve</b>/<b>reject</b>,\n"
-            f"or at your desk: <code>em approve {esc(state.run_id)} {esc(task_id)}</code>"
+        ask = HumanAsk(
+            type="confirm",
+            question=f"Approve running task `{task_id}`?",
+            source="yaml",
         )
+        self.human_ask(state, task_id, ask)
+
+    def human_ask(self, state: "RunState", task_id: str, ask: HumanAsk) -> None:
+        esc = tg.html_escape
+        q = esc(ask.question)
+        header = f"❓ <b>Agent needs you</b>\n" if ask.source == "agent" else f"⏸️ <b>Approval needed</b>\n"
+        lines = [
+            header.strip(),
+            f"task: <b>{esc(task_id)}</b>",
+            f"<i>{esc(state.workflow_name)} · {esc(state.run_id)}</i>",
+            "",
+            q,
+        ]
         markup = None
-        if self.telegram_ready:
-            markup = tg.approval_keyboard(state.run_id, task_id)
-        self._send(text, reply_markup=markup)
+        if ask.type == "confirm":
+            lines.append("")
+            lines.append(
+                f"Tap a button, reply <b>yes</b>/<b>no</b>, or desk: "
+                f"<code>em approve {esc(state.run_id)} {esc(task_id)}</code>"
+            )
+            if self.telegram_ready:
+                markup = tg.approval_keyboard(state.run_id, task_id)
+        elif ask.type == "choice":
+            opts = "\n".join(
+                f"{i + 1}. {esc(o)}" for i, o in enumerate(ask.options)
+            )
+            lines.append("")
+            lines.append(opts)
+            lines.append("")
+            lines.append(
+                f"Tap a button, reply with a number, or: "
+                f"<code>em answer {esc(state.run_id)} {esc(task_id)} --text …</code>"
+            )
+            if self.telegram_ready:
+                markup = tg.choice_keyboard(state.run_id, task_id, ask.options)
+        else:  # text
+            lines.append("")
+            lines.append(
+                "Reply in Telegram with your answer, or desk: "
+                f"<code>em answer {esc(state.run_id)} {esc(task_id)} --text \"…\"</code>"
+            )
+        self._send("\n".join(lines), reply_markup=markup)
 
     def poll_telegram_decision(
         self,
@@ -134,7 +172,37 @@ class Notifier:
         task_id: str,
         offset: int | None = None,
     ) -> tuple[ApprovalDecision | None, int | None]:
-        """Poll getUpdates once; write decision file if found. Returns (decision, next_offset)."""
+        """Poll for approve/reject (YAML gates)."""
+        reply, next_offset = self.poll_telegram_reply(
+            state_root=state_root,
+            run_id=run_id,
+            task_id=task_id,
+            ask=HumanAsk(type="confirm", question=""),
+            offset=offset,
+        )
+        if reply is None:
+            return None, next_offset
+        if reply.kind == "approve":
+            return ApprovalDecision(decision="approve", source=reply.source), next_offset
+        if reply.kind == "reject":
+            return (
+                ApprovalDecision(
+                    decision="reject", reason=reply.answer, source=reply.source
+                ),
+                next_offset,
+            )
+        return None, next_offset
+
+    def poll_telegram_reply(
+        self,
+        *,
+        state_root: "Path",
+        run_id: str,
+        task_id: str,
+        ask: HumanAsk,
+        offset: int | None = None,
+    ) -> tuple["HumanReply | None", int | None]:
+        """Poll getUpdates; write reply file if found."""
         if not self.telegram_ready:
             return None, offset
         try:
@@ -151,8 +219,13 @@ class Notifier:
             upd_id = upd.get("update_id")
             if isinstance(upd_id, int):
                 next_offset = upd_id + 1
-            parsed = tg.parse_approval_from_update(
-                upd, run_id=run_id, task_id=task_id, allowlist=allow
+            parsed = tg.parse_human_reply_from_update(
+                upd,
+                run_id=run_id,
+                task_id=task_id,
+                allowlist=allow,
+                ask_type=ask.type,
+                options=ask.options,
             )
             cb = upd.get("callback_query")
             if cb and self.telegram_ready:
@@ -166,15 +239,16 @@ class Notifier:
                     pass
             if not parsed:
                 continue
-            decision, source = parsed
-            write_decision(
+            kind, answer, source = parsed
+            write_reply(
                 state_root,
                 run_id,
                 task_id,
-                decision,  # type: ignore[arg-type]
+                kind,  # type: ignore[arg-type]
+                answer=answer,
                 source=source,
             )
-            from em.notify.approvals import read_decision
+            from em.notify.asks import read_reply
 
-            return read_decision(state_root, run_id, task_id), next_offset
+            return read_reply(state_root, run_id, task_id), next_offset
         return None, next_offset

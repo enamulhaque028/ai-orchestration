@@ -11,6 +11,7 @@ class TaskStatus(str, Enum):
     PENDING = "pending"
     READY = "ready"
     WAITING_APPROVAL = "waiting_approval"
+    WAITING_HUMAN = "waiting_human"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -122,6 +123,7 @@ class TaskState:
     started_at: str | None = None
     finished_at: str | None = None
     error: str | None = None
+    human_answer: str | None = None  # last human reply injected on re-run
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -136,6 +138,7 @@ class TaskState:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "error": self.error,
+            "human_answer": self.human_answer,
         }
 
     @classmethod
@@ -152,6 +155,7 @@ class TaskState:
             started_at=data.get("started_at"),
             finished_at=data.get("finished_at"),
             error=data.get("error"),
+            human_answer=data.get("human_answer"),
         )
 
 

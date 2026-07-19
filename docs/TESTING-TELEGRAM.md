@@ -1,6 +1,6 @@
 # Test Telegram remote control (from scratch)
 
-Start here if you do **not** have `em` installed yet.
+Hands-on checklist. For full feature documentation (how it works, ask types, config, security), see **[`REMOTE-CONTROL.md`](REMOTE-CONTROL.md)**.
 
 ## A. Install `em` (this feature branch)
 
@@ -17,29 +17,24 @@ export PATH="$HOME/.local/bin:$PATH"
 em doctor
 ```
 
-You need **Cursor Agent** logged in for the Flutter test:
+Cursor Agent (for the Flutter sample):
 
 ```bash
 agent login
 agent status
 ```
 
-Optional: Flutter SDK if you run the sample app (`flutter --version`).
+Optional: Flutter SDK (`flutter --version`).
 
 ## B. Telegram (one-time)
 
 1. Telegram → [@BotFather](https://t.me/BotFather) → `/newbot` → copy the **token**
-2. Run:
+2. Run `em config telegram`
+3. Paste the token → message your bot `hi` → `em` detects chat id and sends a setup message
 
 ```bash
-em config telegram
+em notify test    # optional extra ping
 ```
-
-3. Paste the token  
-4. When asked: open **your new bot** in Telegram and send `hi`  
-5. `em` detects your chat id and sends a setup message to your phone  
-
-That is all for Telegram.
 
 ## C. Real pipeline test
 
@@ -47,22 +42,38 @@ That is all for Telegram.
 cd examples/sample_flutter_app
 ```
 
-In `workflow.yaml`, on the `review` task, add:
+On the `review` task in `workflow.yaml`, add:
 
 ```yaml
     requires_approval: true
 ```
 
-Then:
+Run:
 
 ```bash
 em run workflow.yaml
 ```
 
-What to expect:
+Expect:
 
-- Telegram message after each finished task  
-- Pause before `review` with **Approve / Reject** on Telegram  
-- Tap **Approve** → review runs → final run summary on Telegram  
+- Telegram summary after each finished task  
+- Pause before `review` (`waiting_approval`) with Approve / Reject  
+- Tap **Approve** → review runs → run-finished summary  
 
-Desk fallback: `em approve <run_id> review` (see `em status` for the run id).
+Desk: `em approve <run_id> review` (`em status` for the id).
+
+### Agent-raised ask (optional check)
+
+If an agent prints:
+
+```text
+EM_ASK:{"type":"choice","question":"Which color?","options":["red","blue"]}
+```
+
+Answer in Telegram or:
+
+```bash
+em answer <run_id> <task_id> --text "blue"
+```
+
+`em` re-runs that task with your answer. Details: [Agent-raised asks](REMOTE-CONTROL.md#8-agent-raised-asks-em_ask).

@@ -1,11 +1,17 @@
-"""Human approval decision files for dual desk/remote control."""
+"""Human approval / reply decision files (back-compat wrappers)."""
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+
+from em.notify.asks import (
+    clear_ask_files,
+    read_reply,
+    reply_path,
+    write_reply,
+)
 
 Decision = Literal["approve", "reject"]
 
@@ -14,22 +20,16 @@ Decision = Literal["approve", "reject"]
 class ApprovalDecision:
     decision: Decision
     reason: str = ""
-    source: str = "cli"  # cli | telegram | terminal
+    source: str = "cli"
 
     def to_dict(self) -> dict:
         return {
             "decision": self.decision,
             "reason": self.reason,
             "source": self.source,
+            "kind": self.decision,
+            "answer": "approve" if self.decision == "approve" else self.reason,
         }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> ApprovalDecision:
-        return cls(
-            decision=data["decision"],  # type: ignore[arg-type]
-            reason=str(data.get("reason") or ""),
-            source=str(data.get("source") or "cli"),
-        )
 
 
 def approvals_dir(state_root: Path, run_id: str) -> Path:
@@ -37,7 +37,7 @@ def approvals_dir(state_root: Path, run_id: str) -> Path:
 
 
 def decision_path(state_root: Path, run_id: str, task_id: str) -> Path:
-    return approvals_dir(state_root, run_id) / f"{task_id}.json"
+    return reply_path(state_root, run_id, task_id)
 
 
 def write_decision(
@@ -49,31 +49,31 @@ def write_decision(
     reason: str = "",
     source: str = "cli",
 ) -> Path:
-    path = decision_path(state_root, run_id, task_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = ApprovalDecision(
-        decision=decision, reason=reason, source=source
-    ).to_dict()
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return path
+    return write_reply(
+        state_root,
+        run_id,
+        task_id,
+        decision,
+        answer="approve" if decision == "approve" else reason,
+        source=source,
+    )
 
 
 def read_decision(
     state_root: Path, run_id: str, task_id: str
 ) -> ApprovalDecision | None:
-    path = decision_path(state_root, run_id, task_id)
-    if not path.is_file():
+    reply = read_reply(state_root, run_id, task_id)
+    if reply is None:
         return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-    if data.get("decision") not in ("approve", "reject"):
-        return None
-    return ApprovalDecision.from_dict(data)
+    if reply.kind == "approve":
+        return ApprovalDecision(decision="approve", source=reply.source)
+    if reply.kind == "reject":
+        return ApprovalDecision(
+            decision="reject", reason=reply.answer, source=reply.source
+        )
+    # Typed answers are not approve/reject decisions
+    return None
 
 
 def clear_decision(state_root: Path, run_id: str, task_id: str) -> None:
-    path = decision_path(state_root, run_id, task_id)
-    if path.is_file():
-        path.unlink()
+    clear_ask_files(state_root, run_id, task_id)
