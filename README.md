@@ -197,6 +197,9 @@ tasks:
 
 - No `depends_on` → can start immediately (up to `max_parallel`).
 - With `depends_on` → starts after those tasks finish.
+- **Upstream** = the tasks listed in `depends_on` (the ones that ran before this task).
+  Later agents don’t see earlier chats, so put `{{upstream.summary}}` in the prompt
+  when the next step needs that context (what passed, what failed, and why).
 - `when: on_upstream_failure` → recovery task if a dependency failed.
 - `when: on_upstream_success` → only if dependencies succeeded.
 - Placeholders: `{{cwd}}`, `{{workflow.name}}`, `{{upstream.summary}}`,
