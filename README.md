@@ -102,39 +102,38 @@ auto-install these; they need their own login):
 em doctor    # shows which agent CLIs are available
 ```
 
-**Optional:** Flutter SDK — only for [`examples/workflows/flutter-checkout.yaml`](examples/workflows/flutter-checkout.yaml).
+**Optional:** Flutter SDK — only for the [Flutter demo](examples/sample_flutter_app/flutter-checkout.yaml).
 
 ## Quick start
 
-After a global install you do **not** need the repo path. Use bundled examples:
+A workflow is just a YAML file that lives **in your project**. Point `em run` at it.
+
+**1. Go to your project and create a workflow file:**
 
 ```bash
-em examples list
-em run --example mock-feature          # dry-run (mock agents, no CLI needed)
+cd /path/to/your/repo
+```
+
+Create a starter `workflow.yaml` there:
+
+```bash
+em init
+```
+
+Edit the prompts to describe your feature (see [Write a workflow](#write-a-workflow))
+and keep `cwd: .`.
+
+**2. Run it from inside your project:**
+
+```bash
+em run workflow.yaml
 em status
 ```
 
-Real agents on **your** project:
+**Full Flutter demo** (needs Flutter SDK + Cursor Agent):
 
 ```bash
-# 1) Log into the CLI(s) you use, e.g. agent login
-# 2) Write a workflow YAML (or copy an example)
-em examples write real-agents
-# 3) Edit cwd/prompts, then:
-em run real-agents.yaml --cwd /path/to/your/repo
-```
-
-Flutter demo (needs Flutter SDK + Cursor Agent):
-
-```bash
-# Option A — from a clone of this repo:
-cd /path/to/ai-orchestration
-em run examples/workflows/flutter-checkout.yaml
-
-# Option B — bundled example inside the sample app:
-git clone https://github.com/enamulhaque028/ai-orchestration.git
 cd ai-orchestration/examples/sample_flutter_app
-em examples write flutter-checkout
 em run flutter-checkout.yaml
 ```
 
@@ -219,6 +218,7 @@ tasks:
 ## Commands
 
 ```bash
+em init                           # create a starter workflow.yaml
 em run workflow.yaml              # start
 em status                         # latest run
 em status <run_id>                # one run
@@ -244,9 +244,9 @@ State and logs (default under the project `cwd`):
 
 | File | Purpose |
 |------|---------|
-| [`workflows/example-feature.yaml`](workflows/example-feature.yaml) | Mock agents (no CLI needed) |
-| [`workflows/example-real-agents.yaml`](workflows/example-real-agents.yaml) | Mixed Claude + Cursor |
-| [`examples/workflows/flutter-checkout.yaml`](examples/workflows/flutter-checkout.yaml) | Real Flutter feature pipeline |
+| [`examples/sample_flutter_app/flutter-checkout.yaml`](examples/sample_flutter_app/flutter-checkout.yaml) | Real Flutter feature pipeline (lives in the app) |
+
+`em init` writes a starter workflow (mixed Claude + Cursor) into your project.
 
 Flutter app notes: [`examples/sample_flutter_app/README.md`](examples/sample_flutter_app/README.md).
 

@@ -111,10 +111,13 @@ def test_when_and_failure_policy():
     assert wf.tasks[0].max_retries == 0
 
 
-def test_load_example_workflow():
-    path = Path(__file__).resolve().parents[1] / "workflows" / "example-feature.yaml"
+def test_load_starter_workflow(tmp_path: Path):
+    from em.cli import STARTER_WORKFLOW
+
+    path = tmp_path / "workflow.yaml"
+    path.write_text(STARTER_WORKFLOW, encoding="utf-8")
     wf = load_workflow(path)
-    assert wf.name == "add-checkout-flow"
+    assert wf.name == "add-checkout-flow-real"
     assert len(wf.tasks) == 4
     fix = wf.task_by_id("fix-failures")
     assert fix.when == TaskWhen.ON_UPSTREAM_FAILURE

@@ -8,18 +8,19 @@ Default workflow uses **Cursor Agent CLI**. Change `provider:` in the YAML to
 
 ## Run
 
-From the **repo root**:
+The workflow (`flutter-checkout.yaml`) lives **in this folder** with `cwd: .`,
+so run it from here:
 
 ```bash
-source .venv/bin/activate
+cd examples/sample_flutter_app
 export PATH="$HOME/.local/bin:$PATH"   # if using Cursor Agent
 
 # Log into your chosen CLI once (examples):
 #   agent login
 #   claude
 
-em run examples/workflows/flutter-checkout.yaml
-em status --state-dir examples/sample_flutter_app/.em
+em run flutter-checkout.yaml
+em status
 ```
 
 Pipeline: API → UI → QA → (fix if needed) → review.
@@ -27,7 +28,6 @@ Pipeline: API → UI → QA → (fix if needed) → review.
 After a successful run:
 
 ```bash
-cd examples/sample_flutter_app
 flutter test
 flutter run
 cat docs/REVIEW.md

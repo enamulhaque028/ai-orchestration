@@ -1,12 +1,14 @@
-# Real Cursor Agent CLI pipeline for the sample Flutter app.
+# Real Cursor Agent CLI pipeline for this Flutter app.
 # Free product API (no key): https://fakestoreapi.com
 #
 # Auth: Cursor Agent CLI login (no CURSOR_API_KEY needed)
 #   agent login          # once
 #   agent status         # confirm logged in
-# Binary: ~/.local/bin/agent (or cursor-agent on PATH)
+#
+# Run from this folder:
+#   cd examples/sample_flutter_app
+#   em run flutter-checkout.yaml
 name: flutter-store-checkout
-# Run this from inside a Flutter app directory (e.g. the sample app from the repo).
 cwd: .
 max_parallel: 1
 defaults:
