@@ -9,6 +9,29 @@ don’t babysit each worker.
 Works with any supported agent CLI on your machine (Cursor Agent, Claude Code,
 Codex, Gemini, or a custom shell command).
 
+## Why `em`?
+
+**The problem:** Multi-step AI coding work usually means you open several agent
+sessions yourself — implement, then QA, then fix, then review. You watch each
+one finish, copy context into the next prompt, restart failed steps, and lose
+progress if your terminal dies. That doesn’t scale when a feature needs several
+specialists in a fixed order (or in parallel).
+
+**What `em` does:** You describe the pipeline once in YAML. `em` acts as the
+engineering manager: it schedules agents, respects dependencies, fans out
+parallel work, retries or recovers on failure, and can resume an interrupted run.
+
+**Features**
+
+- **YAML workflows** — declare agents, tasks, and `depends_on` in one file
+- **Multi-CLI** — Cursor, Claude Code, Codex, Gemini, or plain shell commands
+- **DAG scheduling** — run independent tasks in parallel (`max_parallel`)
+- **Failure handling** — retry, skip, or run recovery tasks (`on_upstream_failure`)
+- **Context handoff** — pass prior results with `{{upstream.summary}}`
+- **Resume** — interrupt with Ctrl+C; continue later with `em resume`
+- **Live status** — terminal board for what’s running / done / failed
+- **Any project** — install once globally; put `workflow.yaml` in the repo you work on
+
 ## Install (recommended)
 
 Works on **macOS**, **Linux**, and **Windows**.
