@@ -15,25 +15,24 @@ Codex, Gemini, or a custom shell command).
 
 | Requirement | Notes |
 |-------------|--------|
-| Python **3.11+** | `python3 --version` |
-| `pip` | Comes with Python / venv |
-| Terminal access | `em` is a CLI |
+| Python **3.11+** | Check with `python3 --version`. macOS system Python is often too old — use [Homebrew](https://brew.sh) (`brew install python`). |
+| [pipx](https://pipx.pypa.io/) | Recommended installer so `em` is available globally. `brew install pipx` then `pipx ensurepath`. |
+| Terminal | `em` is a command-line tool |
 
-**Agent CLIs** (install only what you use in your workflow)
+**Agent CLIs** (install only what your workflow uses)
 
 | Provider | CLI binary | Setup |
 |----------|------------|--------|
-| Cursor | `agent` or `cursor-agent` | Install Cursor Agent; often in `~/.local/bin`. Then `agent login`. |
+| Cursor | `agent` or `cursor-agent` | Install Cursor Agent (often `~/.local/bin`). Then `agent login`. |
 | Claude Code | `claude` | Install Claude Code; log in once. |
 | Codex | `codex` | Install Codex CLI; log in once. |
 | Gemini | `gemini` | Install Gemini CLI; log in once. |
-| Shell / custom | your command | Must be on `PATH` or use an absolute path in the workflow. |
-
-Check binaries:
+| Shell / custom | your command | On `PATH`, or use an absolute path in the YAML. |
 
 ```bash
-python3 --version
-which agent claude codex gemini   # whichever you plan to use
+python3 --version          # must be 3.11+
+which pipx
+which agent claude         # whichever you plan to use
 ```
 
 **Optional (examples only)**
@@ -44,22 +43,55 @@ which agent claude codex gemini   # whichever you plan to use
 
 ## Install
 
-**From this repo (once, use anywhere):**
+Install **once**. After that, `em` works in any project — you do **not** need to clone this repo into each project.
+
+### Recommended: pipx (global `em` command)
 
 ```bash
+# 1) pipx (macOS example)
+brew install pipx
+pipx ensurepath
+
+# 2) Restart the terminal (or open a new tab), then:
 pipx install git+https://github.com/enamulhaque028/ai-orchestration.git
-# or:
-pip install --user git+https://github.com/enamulhaque028/ai-orchestration.git
+
+# 3) Confirm
+em --help
 ```
 
-**From a local clone (development):**
+`pipx ensurepath` adds `~/.local/bin` to your shell `PATH`. If you still get `command not found: em`:
 
 ```bash
+# Put this in ~/.zshrc (or ~/.bashrc), then restart the terminal:
+export PATH="$HOME/.local/bin:$PATH"
+
+# Or run once in the current session:
+export PATH="$HOME/.local/bin:$PATH"
+em --help
+```
+
+Upgrade later:
+
+```bash
+pipx upgrade em
+# or reinstall from git:
+pipx install --force git+https://github.com/enamulhaque028/ai-orchestration.git
+```
+
+### Development (local clone)
+
+Only needed if you are changing `em` itself:
+
+```bash
+git clone https://github.com/enamulhaque028/ai-orchestration.git
 cd ai-orchestration
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # required each new shell while developing
 pip install -e .
+em --help
 ```
+
+Without activating `.venv`, `em` will not be found from that install.
 
 ## Quick start
 
