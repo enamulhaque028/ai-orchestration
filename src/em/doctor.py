@@ -11,6 +11,13 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
+from em.platform_paths import (
+    path_hint,
+    primary_user_bin,
+    python_install_hint,
+    which_command,
+)
+
 
 @dataclass
 class CheckResult:
@@ -20,57 +27,49 @@ class CheckResult:
     hint: str = ""
 
 
-def _which_any(*names: str) -> str | None:
-    for name in names:
-        path = shutil.which(name)
-        if path:
-            return path
-        # Common user install location even if not yet on PATH
-        candidate = Path.home() / ".local" / "bin" / name
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
-    return None
-
-
 def run_checks() -> list[CheckResult]:
     results: list[CheckResult] = []
 
-    # Python (the one running em)
     py_ok = sys.version_info >= (3, 11)
     results.append(
         CheckResult(
             name="Python",
             ok=py_ok,
             detail=f"{sys.version.split()[0]} ({sys.executable})",
-            hint="" if py_ok else "Need Python 3.11+. Install via Homebrew: brew install python",
+            hint="" if py_ok else python_install_hint(),
         )
     )
 
-    local_bin = Path.home() / ".local" / "bin"
-    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    local_on_path = str(local_bin) in path_dirs or any(
-        Path(p).resolve() == local_bin.resolve() for p in path_dirs if p
-    )
+    local_bin = primary_user_bin()
+    path_dirs = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+    local_on_path = False
+    try:
+        local_resolved = local_bin.resolve()
+        local_on_path = any(Path(p).resolve() == local_resolved for p in path_dirs)
+    except OSError:
+        local_on_path = str(local_bin) in path_dirs
+
     results.append(
         CheckResult(
-            name="~/.local/bin on PATH",
+            name="User bin on PATH",
             ok=local_on_path,
-            detail="yes" if local_on_path else "no",
-            hint=(
-                ""
-                if local_on_path
-                else 'Add to ~/.zshrc: export PATH="$HOME/.local/bin:$PATH"  then open a new terminal'
-            ),
+            detail=f"{local_bin} — {'yes' if local_on_path else 'no'}",
+            hint="" if local_on_path else path_hint(),
         )
     )
 
-    em_path = shutil.which("em")
+    em_path = shutil.which("em") or which_command("em")
     results.append(
         CheckResult(
             name="em command",
             ok=bool(em_path),
             detail=em_path or "not found on PATH",
-            hint="" if em_path else "Re-run the installer or: pipx install --force git+https://github.com/enamulhaque028/ai-orchestration.git",
+            hint=(
+                ""
+                if em_path
+                else "Re-run the installer for your OS (see README), or: "
+                "pipx install --force git+https://github.com/enamulhaque028/ai-orchestration.git"
+            ),
         )
     )
 
@@ -81,7 +80,7 @@ def run_checks() -> list[CheckResult]:
         ("Gemini", ("gemini",), "Install Gemini CLI and log in"),
     ]
     for label, bins, hint in agents:
-        found = _which_any(*bins)
+        found = which_command(*bins)
         results.append(
             CheckResult(
                 name=label,
@@ -105,7 +104,6 @@ def print_doctor(console: Console | None = None) -> int:
     table.add_column("Detail")
 
     for r in results:
-        # Agent CLIs are optional — show yellow warn, not hard fail styling for missing
         optional = r.name in ("Cursor Agent", "Claude Code", "Codex", "Gemini")
         if r.ok:
             status = "[green]ok[/green]"
@@ -126,7 +124,7 @@ def print_doctor(console: Console | None = None) -> int:
     console.print(
         "\nAgent CLIs are optional — install only the providers your workflow uses."
     )
+    console.print(f"Platform: [cyan]{sys.platform}[/cyan]")
 
-    # Hard requirements for em itself
     hard = [r for r in results if r.name in ("Python", "em command") and not r.ok]
     return 1 if hard else 0

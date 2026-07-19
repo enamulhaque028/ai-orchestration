@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Install Engineering Manager (`em`) and runtime prerequisites.
+# macOS and Linux.
 #
 # One-liner:
 #   curl -fsSL https://raw.githubusercontent.com/enamulhaque028/ai-orchestration/main/install.sh | bash
+#
+# Windows: use install.ps1 instead (see README).
 set -euo pipefail
 
 REPO_GIT="git+https://github.com/enamulhaque028/ai-orchestration.git"

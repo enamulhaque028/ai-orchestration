@@ -3,30 +3,30 @@
 from __future__ import annotations
 
 import os
-import shutil
 
 from em.adapters.base import run_subprocess
 from em.models import AgentResult, TaskRunSpec, TaskStatus
+from em.platform_paths import which_command
 
 
 class CodexAdapter:
     async def run(self, spec: TaskRunSpec) -> AgentResult:
-        binary = spec.agent.extra.get("binary") or os.environ.get(
-            "EM_CODEX_BIN", "codex"
+        binary = str(
+            spec.agent.extra.get("binary") or os.environ.get("EM_CODEX_BIN") or "codex"
         )
-        if not shutil.which(binary):
+        resolved = binary if os.path.isfile(binary) else which_command(binary)
+        if not resolved:
             return AgentResult(
                 status=TaskStatus.FAILED,
                 summary="codex CLI not found on PATH. Install Codex or set EM_CODEX_BIN.",
                 exit_code=127,
             )
 
-        # Prefer non-interactive exec; fall back to -p style if configured
         mode = str(spec.agent.extra.get("mode", "exec"))
         if mode == "exec":
-            cmd = [binary, "exec", "--full-auto", spec.prompt]
+            cmd = [resolved, "exec", "--full-auto", spec.prompt]
         else:
-            cmd = [binary, "--print", spec.prompt]
+            cmd = [resolved, "--print", spec.prompt]
 
         model = spec.agent.model or spec.agent.extra.get("model")
         if model:

@@ -4,45 +4,30 @@ from __future__ import annotations
 
 import asyncio
 import os
-import shutil
 from pathlib import Path
 
 from em.adapters.base import run_subprocess
 from em.models import AgentResult, TaskRunSpec, TaskStatus
+from em.platform_paths import which_command
 
 
 def _resolve_agent_binary(explicit: str | None = None) -> str | None:
-    """Find `agent` / `cursor-agent`, including ~/.local/bin."""
-    search_dirs: list[Path] = []
-    path_env = os.environ.get("PATH", "")
-    search_dirs.extend(Path(p) for p in path_env.split(os.pathsep) if p)
-    search_dirs.append(Path.home() / ".local" / "bin")
-
-    candidates: list[str] = []
+    """Find `agent` / `cursor-agent` on macOS, Linux, or Windows."""
     if explicit:
-        candidates.append(explicit)
+        found = which_command(explicit) if not Path(explicit).is_file() else explicit
+        if found:
+            return found
+        p = Path(explicit)
+        if p.is_file():
+            return str(p)
+
     env_bin = os.environ.get("EM_CURSOR_BIN")
     if env_bin:
-        candidates.append(env_bin)
-    candidates.extend(["agent", "cursor-agent"])
+        found = which_command(env_bin) if not Path(env_bin).is_file() else env_bin
+        if found:
+            return found
 
-    seen: set[str] = set()
-    for name in candidates:
-        if name in seen:
-            continue
-        seen.add(name)
-        # Absolute path
-        p = Path(name)
-        if p.is_file() and os.access(p, os.X_OK):
-            return str(p)
-        which = shutil.which(name)
-        if which:
-            return which
-        for d in search_dirs:
-            candidate = d / name
-            if candidate.is_file() and os.access(candidate, os.X_OK):
-                return str(candidate)
-    return None
+    return which_command("agent", "cursor-agent")
 
 
 class CursorAdapter:

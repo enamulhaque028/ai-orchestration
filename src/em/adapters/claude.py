@@ -4,25 +4,29 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 
 from em.adapters.base import run_subprocess
 from em.models import AgentResult, TaskRunSpec, TaskStatus
+from em.platform_paths import which_command
 
 
 class ClaudeAdapter:
     async def run(self, spec: TaskRunSpec) -> AgentResult:
-        binary = spec.agent.extra.get("binary") or os.environ.get(
-            "EM_CLAUDE_BIN", "claude"
+        binary = str(
+            spec.agent.extra.get("binary") or os.environ.get("EM_CLAUDE_BIN") or "claude"
         )
-        if not shutil.which(binary) and binary == "claude":
+        if os.path.isfile(binary):
+            resolved = binary
+        else:
+            resolved = which_command(binary)
+        if not resolved:
             return AgentResult(
                 status=TaskStatus.FAILED,
                 summary="claude CLI not found on PATH. Install Claude Code or set EM_CLAUDE_BIN.",
                 exit_code=127,
             )
 
-        cmd = [binary, "--print", "--output-format", "json"]
+        cmd = [resolved, "--print", "--output-format", "json"]
 
         model = spec.agent.model or spec.agent.extra.get("model")
         if model:

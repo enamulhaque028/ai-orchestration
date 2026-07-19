@@ -193,12 +193,18 @@ async def _execute(wf, store: StateStore, state, *, providers: dict[str, str], l
         console.print("\n[yellow]Cancel requested…[/yellow]")
         scheduler.request_cancel()
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
+    for sig_name in ("SIGINT", "SIGTERM"):
+        sig = getattr(signal, sig_name, None)
+        if sig is None:
+            continue
         try:
             loop.add_signal_handler(sig, _sig_handler)
-        except NotImplementedError:
-            # Windows
-            signal.signal(sig, lambda *_: _sig_handler())
+        except (NotImplementedError, RuntimeError, ValueError):
+            # Windows / unsupported event-loop signal APIs
+            try:
+                signal.signal(sig, lambda *_: _sig_handler())
+            except (ValueError, OSError):
+                pass
 
     if live:
         with LiveMonitor(console=console, providers=providers) as monitor:

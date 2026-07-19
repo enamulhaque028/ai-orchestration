@@ -11,34 +11,64 @@ Codex, Gemini, or a custom shell command).
 
 ## Install (recommended)
 
-One command. The script checks/installs Python 3.11+, pipx, puts `em` on your
-PATH, then installs `em`:
+Works on **macOS**, **Linux**, and **Windows**.
+
+### macOS / Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/enamulhaque028/ai-orchestration/main/install.sh | bash
 ```
 
-Then **open a new terminal** (or run `export PATH="$HOME/.local/bin:$PATH"`) and:
+Then open a **new terminal** (or `export PATH="$HOME/.local/bin:$PATH"`):
 
 ```bash
 em --help
-em doctor          # checks PATH + optional agent CLIs
+em doctor
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/enamulhaque028/ai-orchestration/main/install.ps1 | iex
+```
+
+Open a **new** PowerShell window, then:
+
+```powershell
+em --help
+em doctor
+```
+
+If scripts are blocked:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
 Install once — use `em` in any project. You do **not** need this repo inside each project.
 
-Upgrade later:
+Upgrade later: re-run the installer for your OS, or:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/enamulhaque028/ai-orchestration/main/install.sh | bash
-# or: pipx install --force git+https://github.com/enamulhaque028/ai-orchestration.git
+pipx install --force git+https://github.com/enamulhaque028/ai-orchestration.git
 ```
 
-### If `em: command not found`
+### If `em` is not found
+
+**macOS / Linux**
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-# permanent: add that line to ~/.zshrc, then open a new terminal
+# permanent: add that line to ~/.zshrc or ~/.bashrc
+```
+
+**Windows**
+
+Ensure `%USERPROFILE%\.local\bin` is on your User PATH  
+(Settings → System → About → Advanced system settings → Environment Variables),  
+then open a new terminal.
+
+```bash
 em doctor
 ```
 
@@ -47,8 +77,8 @@ em doctor
 ```bash
 git clone https://github.com/enamulhaque028/ai-orchestration.git
 cd ai-orchestration
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv          # Windows: py -3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e .
 em doctor
 ```
