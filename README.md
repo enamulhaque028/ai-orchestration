@@ -102,7 +102,7 @@ auto-install these; they need their own login):
 em doctor    # shows which agent CLIs are available
 ```
 
-**Optional:** Flutter SDK — only for the [Flutter demo](examples/sample_flutter_app/workflow.yaml).
+**Optional:** Flutter SDK — only for the [real-life Flutter example](examples/sample_flutter_app/workflow.yaml).
 
 ## Quick start
 
@@ -130,12 +130,17 @@ em run workflow.yaml
 em status
 ```
 
-**Full Flutter demo** (needs Flutter SDK + Cursor Agent):
+**Real-life example** — Flutter store + checkout ([`examples/sample_flutter_app/workflow.yaml`](examples/sample_flutter_app/workflow.yaml)):
+
+A full pipeline with Cursor agents: API → UI → QA → fix (if needed) → review,
+against the free [Fake Store API](https://fakestoreapi.com). Needs Flutter SDK + Cursor Agent.
 
 ```bash
 cd ai-orchestration/examples/sample_flutter_app
 em run workflow.yaml
 ```
+
+See [`examples/sample_flutter_app/README.md`](examples/sample_flutter_app/README.md) for details.
 
 ## Supported providers
 
@@ -245,13 +250,11 @@ State and logs (default under the project `cwd`):
 
 ## Examples
 
-| File | Purpose |
-|------|---------|
-| [`examples/sample_flutter_app/workflow.yaml`](examples/sample_flutter_app/workflow.yaml) | Real Flutter feature pipeline (lives in the app) |
+**Real-life example:** [`examples/sample_flutter_app/workflow.yaml`](examples/sample_flutter_app/workflow.yaml) —
+builds a Flutter store/checkout feature with a multi-agent pipeline (API, UI, QA, fix, review).
+The workflow file lives inside the app (`cwd: .`). Notes: [`examples/sample_flutter_app/README.md`](examples/sample_flutter_app/README.md).
 
-`em init` writes a starter workflow (mixed Claude + Cursor) into your project.
-
-Flutter app notes: [`examples/sample_flutter_app/README.md`](examples/sample_flutter_app/README.md).
+`em init` writes a smaller starter workflow (mixed Claude + Cursor) into your own project.
 
 ## Development
 
