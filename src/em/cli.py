@@ -14,6 +14,7 @@ from em.monitor import LiveMonitor, print_status
 from em.scheduler import Scheduler
 from em.state import StateStore, default_state_dir
 from em.workflow import WorkflowError, load_workflow
+from em.doctor import print_doctor
 
 app = typer.Typer(
     name="em",
@@ -21,6 +22,13 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+
+@app.command("doctor")
+def doctor_cmd() -> None:
+    """Check Python, PATH, em, and optional agent CLIs."""
+    code = print_doctor(console)
+    raise typer.Exit(code)
 
 
 def _resolve_cwd(workflow_cwd: str | None, override: str | None) -> str:

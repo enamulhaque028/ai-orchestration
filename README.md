@@ -9,89 +9,70 @@ don’t babysit each worker.
 Works with any supported agent CLI on your machine (Cursor Agent, Claude Code,
 Codex, Gemini, or a custom shell command).
 
-## Prerequisites
+## Install (recommended)
 
-**Required**
-
-| Requirement | Notes |
-|-------------|--------|
-| Python **3.11+** | Check with `python3 --version`. macOS system Python is often too old — use [Homebrew](https://brew.sh) (`brew install python`). |
-| [pipx](https://pipx.pypa.io/) | Recommended installer so `em` is available globally. `brew install pipx` then `pipx ensurepath`. |
-| Terminal | `em` is a command-line tool |
-
-**Agent CLIs** (install only what your workflow uses)
-
-| Provider | CLI binary | Setup |
-|----------|------------|--------|
-| Cursor | `agent` or `cursor-agent` | Install Cursor Agent (often `~/.local/bin`). Then `agent login`. |
-| Claude Code | `claude` | Install Claude Code; log in once. |
-| Codex | `codex` | Install Codex CLI; log in once. |
-| Gemini | `gemini` | Install Gemini CLI; log in once. |
-| Shell / custom | your command | On `PATH`, or use an absolute path in the YAML. |
+One command. The script checks/installs Python 3.11+, pipx, puts `em` on your
+PATH, then installs `em`:
 
 ```bash
-python3 --version          # must be 3.11+
-which pipx
-which agent claude         # whichever you plan to use
+curl -fsSL https://raw.githubusercontent.com/enamulhaque028/ai-orchestration/main/install.sh | bash
 ```
 
-**Optional (examples only)**
-
-| Requirement | When needed |
-|-------------|-------------|
-| Flutter SDK | Running [`examples/workflows/flutter-checkout.yaml`](examples/workflows/flutter-checkout.yaml) |
-
-## Install
-
-Install **once**. After that, `em` works in any project — you do **not** need to clone this repo into each project.
-
-### Recommended: pipx (global `em` command)
+Then **open a new terminal** (or run `export PATH="$HOME/.local/bin:$PATH"`) and:
 
 ```bash
-# 1) pipx (macOS example)
-brew install pipx
-pipx ensurepath
-
-# 2) Restart the terminal (or open a new tab), then:
-pipx install git+https://github.com/enamulhaque028/ai-orchestration.git
-
-# 3) Confirm
 em --help
+em doctor          # checks PATH + optional agent CLIs
 ```
 
-`pipx ensurepath` adds `~/.local/bin` to your shell `PATH`. If you still get `command not found: em`:
-
-```bash
-# Put this in ~/.zshrc (or ~/.bashrc), then restart the terminal:
-export PATH="$HOME/.local/bin:$PATH"
-
-# Or run once in the current session:
-export PATH="$HOME/.local/bin:$PATH"
-em --help
-```
+Install once — use `em` in any project. You do **not** need this repo inside each project.
 
 Upgrade later:
 
 ```bash
-pipx upgrade em
-# or reinstall from git:
-pipx install --force git+https://github.com/enamulhaque028/ai-orchestration.git
+curl -fsSL https://raw.githubusercontent.com/enamulhaque028/ai-orchestration/main/install.sh | bash
+# or: pipx install --force git+https://github.com/enamulhaque028/ai-orchestration.git
 ```
 
-### Development (local clone)
+### If `em: command not found`
 
-Only needed if you are changing `em` itself:
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+# permanent: add that line to ~/.zshrc, then open a new terminal
+em doctor
+```
+
+### Development install (contributors only)
 
 ```bash
 git clone https://github.com/enamulhaque028/ai-orchestration.git
 cd ai-orchestration
 python3 -m venv .venv
-source .venv/bin/activate   # required each new shell while developing
+source .venv/bin/activate
 pip install -e .
-em --help
+em doctor
 ```
 
-Without activating `.venv`, `em` will not be found from that install.
+## Prerequisites
+
+The **installer** handles Python + pipx for you when possible.
+
+**Agent CLIs** — install only what your workflow uses (the installer does not
+auto-install these; they need their own login):
+
+| Provider | CLI | Setup |
+|----------|-----|--------|
+| Cursor | `agent` / `cursor-agent` | Install Cursor Agent → `agent login` |
+| Claude Code | `claude` | Install + log in |
+| Codex | `codex` | Install + log in |
+| Gemini | `gemini` | Install + log in |
+| Shell | any command | On `PATH` |
+
+```bash
+em doctor    # shows which agent CLIs are available
+```
+
+**Optional:** Flutter SDK — only for [`examples/workflows/flutter-checkout.yaml`](examples/workflows/flutter-checkout.yaml).
 
 ## Quick start
 
